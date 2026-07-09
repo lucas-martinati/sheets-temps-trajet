@@ -1,0 +1,10 @@
+# clasp (si tu synchronises avec l'éditeur Apps Script en ligne de commande)
+.clasp.json
+.clasprc.json
+
+# Divers OS / éditeurs
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
