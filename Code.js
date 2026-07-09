@@ -308,20 +308,39 @@ function executerLotFond() {
  * Renvoie { statut, label, cls, detail } — label/cls servent au journal affiché.
  */
 function traiterRowFond(sheet, row, idxTemps, startAddress, address, mode, transitMode) {
-  var res = appelerDirectionsApi(startAddress, address, mode, transitMode);
-  if (res.status === "OVER_QUERY_LIMIT") {
-    Utilities.sleep(2000);
+  var res;
+  if (mode === "bus603velo") {
+    res = estAdresseAuLuxembourg(address)
+      ? calculerBus603Velo(address)
+      : { status: "HORS_PERIMETRE" };
+  } else {
     res = appelerDirectionsApi(startAddress, address, mode, transitMode);
+    if (res.status === "OVER_QUERY_LIMIT") {
+      Utilities.sleep(2000);
+      res = appelerDirectionsApi(startAddress, address, mode, transitMode);
+    }
   }
+
+  var cell = sheet.getRange(row, idxTemps);
 
   if (res.status === "OK") {
     var minutes = Math.round(res.dureeSecondes / 60);
-    sheet.getRange(row, idxTemps).setValue(minutes);
+    cell.setValue(minutes);
+    cell.setNote(res.arretUtilise
+      ? "Bus 603 jusqu'à " + res.arretUtilise + " (~" + res.arretBusMin + " min de bus), " +
+        "puis " + Math.round(res.veloSecondes / 60) + " min de vélo."
+      : null);
     return { statut: "ok", label: minutes + " min", cls: "ok" };
   }
   if (res.status === "ZERO_RESULTS" || res.status === "NOT_FOUND") {
-    sheet.getRange(row, idxTemps).setValue("Introuvable");
+    cell.setValue("Introuvable");
+    cell.setNote(null);
     return { statut: "introuvable", label: "Introuvable", cls: "warn" };
+  }
+  if (res.status === "HORS_PERIMETRE") {
+    cell.setValue("Hors Luxembourg");
+    cell.setNote("Le mode Bus 603 + Vélo ne s'applique qu'aux adresses situées au Luxembourg.");
+    return { statut: "introuvable", label: "Hors Luxembourg", cls: "warn" };
   }
   if (res.status === "OVER_DAILY_LIMIT") {
     return { statut: "quota_jour", detail: res.detail, label: "Quota", cls: "err" };
@@ -333,7 +352,8 @@ function traiterRowFond(sheet, row, idxTemps, startAddress, address, mode, trans
     // limite momentanée persistante -> on n'écrit rien, on avancera quand même
     return { statut: "quota_court", detail: res.detail, label: "Ignoré (ralenti)", cls: "warn" };
   }
-  sheet.getRange(row, idxTemps).setValue("Erreur adresse");
+  cell.setValue("Erreur adresse");
+  cell.setNote(null);
   return { statut: "erreur", detail: res.detail, label: "Erreur", cls: "err" };
 }
 
@@ -350,7 +370,7 @@ function appelerDirectionsApi(origin, destination, mode, transitMode) {
     return { status: "REQUEST_DENIED", detail: "Aucune clé API configurée." };
   }
 
-  mode = mode || "driving"; // driving | walking | transit
+  mode = mode || "driving"; // driving | walking | bicycling | transit
 
   var url = "https://maps.googleapis.com/maps/api/directions/json"
     + "?origin=" + encodeURIComponent(origin)
@@ -379,6 +399,85 @@ function appelerDirectionsApi(origin, destination, mode, transitMode) {
   } catch (e) {
     return { status: "ERREUR_RESEAU", detail: e.toString() };
   }
+}
+
+/**
+ * Arrêts de la ligne transfrontalière RGTR 603 (Piennes (F) <-> Luxembourg, Gare),
+ * dans l'ordre du trajet, avec le temps de bus depuis le terminus « Piennes,
+ * Zone d'activités » (en minutes, d'après les horaires officiels RGTR de mai 2026 :
+ * https://www.mobiliteit.lu/en/line/bus-603-rgtr-2/).
+ * Un seul arrêt représentatif est gardé par petite zone (les arrêts très proches
+ * les uns des autres, ex. les 3 arrêts de Landres, sont regroupés) pour limiter
+ * le nombre d'appels à l'API lors de la recherche du meilleur arrêt.
+ * Le temps de bus est une moyenne fixe issue des horaires : il ne tient pas
+ * compte de l'heure réelle de départ ni du temps d'attente à l'arrêt.
+ */
+var ARRETS_BUS_603 = [
+  { nom: "Piennes, Place",            adresse: "Place, Piennes, France",             busMin: 2 },
+  { nom: "Landres, Gare",             adresse: "Gare, Landres, France",              busMin: 5 },
+  { nom: "Malavillers, Mairie",       adresse: "Mairie, Malavillers, France",        busMin: 10 },
+  { nom: "Audun-le-Roman, Église",    adresse: "Église, Audun-le-Roman, France",     busMin: 13 },
+  { nom: "Beuvillers, Centre",        adresse: "Centre, Beuvillers, France",         busMin: 17 },
+  { nom: "Aumetz, Poste",             adresse: "Poste, Aumetz, France",              busMin: 21 },
+  { nom: "Audun-le-Tiche, Mairie",    adresse: "Mairie, Audun-le-Tiche, France",     busMin: 30 },
+  { nom: "Esch-sur-Alzette, Gare",    adresse: "Gare, Esch-sur-Alzette, Luxembourg", busMin: 37 },
+  { nom: "Luxembourg, Cloche d'Or",   adresse: "Cloche d'Or, Luxembourg",            busMin: 53 },
+  { nom: "Luxembourg, Gasperich",     adresse: "Gasperich, Luxembourg",              busMin: 56 },
+  { nom: "Luxembourg, Hollerich",     adresse: "Hollerich, Luxembourg",              busMin: 59 },
+  { nom: "Luxembourg, Gare centrale", adresse: "Gare Centrale, Luxembourg",          busMin: 60 }
+];
+
+/**
+ * Détecte si une adresse est située au Luxembourg (recherche du mot
+ * « Luxembourg », ou d'un code postal luxembourgeois du type « L-1234 »).
+ * Le mode Bus 603 + Vélo n'a de sens que pour ces adresses : la ligne part
+ * de Piennes pour rejoindre le Luxembourg via l'ouest de la Moselle.
+ */
+function estAdresseAuLuxembourg(address) {
+  var a = (address || "").toString();
+  return /luxembourg/i.test(a) || /\bL-\d{4}\b/.test(a);
+}
+
+/**
+ * Calcule le trajet « Bus 603 (départ Piennes) + vélo » vers `destination`.
+ * Pour chaque arrêt de la ligne 603, calcule le temps de vélo restant jusqu'à
+ * la destination, et garde l'arrêt qui minimise ce temps de vélo — c'est-à-dire
+ * qu'on va « le plus loin/proche possible » en bus avant de finir à vélo.
+ * Renvoie { status, dureeSecondes, arretUtilise, arretBusMin, veloSecondes, detail }.
+ */
+function calculerBus603Velo(destination) {
+  var meilleur = null;
+
+  for (var i = 0; i < ARRETS_BUS_603.length; i++) {
+    var arret = ARRETS_BUS_603[i];
+    var res = appelerDirectionsApi(arret.adresse, destination, "bicycling", "");
+
+    if (res.status === "OVER_QUERY_LIMIT") {
+      Utilities.sleep(1000);
+      res = appelerDirectionsApi(arret.adresse, destination, "bicycling", "");
+    }
+    // Erreur bloquante (clé invalide, quota journalier épuisé) -> on remonte tout de suite.
+    if (res.status === "OVER_DAILY_LIMIT" || res.status === "REQUEST_DENIED") {
+      return res;
+    }
+    if (res.status === "OK" && (!meilleur || res.dureeSecondes < meilleur.veloSecondes)) {
+      meilleur = { arret: arret, veloSecondes: res.dureeSecondes };
+    }
+
+    Utilities.sleep(100); // reste courtois avec l'API (12 appels par ligne dans ce mode)
+  }
+
+  if (!meilleur) {
+    return { status: "ZERO_RESULTS", detail: "Aucun arrêt de la ligne 603 n'a pu être relié en vélo à cette adresse." };
+  }
+
+  return {
+    status: "OK",
+    dureeSecondes: meilleur.arret.busMin * 60 + meilleur.veloSecondes,
+    arretUtilise: meilleur.arret.nom,
+    arretBusMin: meilleur.arret.busMin,
+    veloSecondes: meilleur.veloSecondes
+  };
 }
 
 /**
@@ -661,12 +760,20 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
             <select id="adresse">${optionsHtml}</select>
 
             <label for="mode" style="margin-top:14px;">Mode de transport</label>
-            <select id="mode">
+            <select id="mode" onchange="majHintMode()">
               <option value="driving" selected>🚗 Voiture</option>
               <option value="walking">🚶 À pied</option>
               <option value="transit|train">🚆 Train</option>
               <option value="transit|bus">🚌 Bus</option>
+              <option value="bus603velo">🚌🚲 Bus 603 (Piennes) + Vélo</option>
             </select>
+            <p class="bg-hint" id="hintBus603" style="display:none;">
+              Ce mode part toujours de Piennes via la ligne 603 (le point de départ choisi
+              ci-dessus est ignoré), prend le bus jusqu'à l'arrêt qui minimise le vélo restant,
+              puis termine à vélo. Il ne s'applique qu'aux adresses situées au Luxembourg
+              (les autres reçoivent « Hors Luxembourg »). Temps de bus basé sur les horaires
+              moyens (hors attente).
+            </p>
 
             <div class="cols-row">
               <div class="cols-col">
@@ -734,6 +841,11 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
         <script>
           var nomLieu = "";
           var pollTimer = null;
+
+          function majHintMode() {
+            var estBus603 = document.getElementById("mode").value === "bus603velo";
+            document.getElementById("hintBus603").style.display = estBus603 ? "block" : "none";
+          }
 
           function showView(id) {
             ["setupView", "progressView", "doneView"].forEach(function(v) {

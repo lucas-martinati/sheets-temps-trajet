@@ -11,7 +11,8 @@ Le calcul tourne **en arrière-plan** : on peut fermer la fenêtre, il continue 
 
 - Menu personnalisé dans Google Sheets (**🚗 Outils Candidatures**).
 - Choix du **point de départ** parmi une liste d'adresses enregistrées.
-- Choix du **mode de transport** : 🚗 voiture · 🚶 à pied · 🚆 train · 🚌 bus.
+- Choix du **mode de transport** : 🚗 voiture · 🚶 à pied · 🚆 train · 🚌 bus ·
+  🚌🚲 **Bus 603 (Piennes) + Vélo**.
 - Choix libre des **colonnes** utilisées (colonne de l'adresse, colonne du résultat).
 - **Traitement en arrière-plan** via un déclencheur temporel : la fermeture de la
   fenêtre n'interrompt pas le calcul ; on peut rouvrir le menu pour revoir la progression.
@@ -90,6 +91,22 @@ lancement : y renseigner les points de départ possibles (nom + adresse exacte).
   ou utiliser une autre colonne de résultat (ex. une pour la voiture, une pour le train).
 - Les modes **train / bus** dépendent des horaires réels : une adresse sans desserte
   peut renvoyer « Introuvable » même si l'adresse est correcte.
+- Le mode **🚌🚲 Bus 603 (Piennes) + Vélo** part toujours de Piennes via la ligne
+  transfrontalière RGTR 603 (Piennes → Landres → Audun-le-Roman → Aumetz →
+  Audun-le-Tiche → Esch-sur-Alzette → Luxembourg), quel que soit le point de départ
+  sélectionné dans la fenêtre. Il ne s'applique **qu'aux adresses situées au
+  Luxembourg** (détection sur la présence de « Luxembourg » ou d'un code postal du
+  type « L-1234 » dans l'adresse) ; les autres lignes reçoivent « Hors Luxembourg »
+  et doivent être calculées avec un autre mode/une autre colonne. Pour chaque adresse
+  au Luxembourg, le script teste une douzaine d'arrêts représentatifs de la ligne,
+  calcule le temps de vélo restant jusqu'à la destination pour chacun (via la
+  Directions API en mode vélo), et retient l'arrêt qui minimise ce trajet à vélo —
+  c'est-à-dire qu'on va « le plus loin possible » en bus avant de finir à vélo. Le
+  temps de bus est une **moyenne fixe** tirée des horaires officiels de mai 2026 (ne
+  tient pas compte de l'heure réelle ni du temps d'attente). L'arrêt utilisé et le
+  détail bus/vélo sont ajoutés en **commentaire** sur la cellule de résultat. Ce mode
+  fait jusqu'à ~12 appels API par ligne (un par arrêt testé), donc plus lent et plus
+  gourmand en quota que les autres modes.
 
 ## 🗂️ Structure
 
