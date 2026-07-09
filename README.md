@@ -42,6 +42,35 @@ le quota partagé quasi nul du service Maps intégré à Apps Script).
 La clé est stockée dans les *Script Properties* du projet — **jamais** en dur dans le code
 ni visible dans la feuille.
 
+## 🔄 Développement avec clasp (optionnel)
+
+[`clasp`](https://github.com/google/clasp) permet de synchroniser ce dépôt avec le
+projet Apps Script en ligne, au lieu de copier-coller `Code.gs` à la main. Les
+fichiers `.clasp.json` et `.clasprc.json` sont ignorés par git (voir `.gitignore`) :
+si tu les perds ou clones le dépôt sur une nouvelle machine, voici comment tout
+remettre en place.
+
+1. **Installer clasp** (une fois par machine) :
+   ```bash
+   npm install -g @google/clasp
+   ```
+2. **Se connecter à son compte Google** :
+   ```bash
+   clasp login
+   ```
+   Ouvre un navigateur pour l'authentification ; crée `~/.clasprc.json`.
+3. **Rattacher le dépôt au projet Apps Script existant** :
+   - Récupérer le *Script ID* du projet : dans l'éditeur Apps Script du Sheet →
+     ⚙️ **Paramètres du projet** → copier l'ID.
+   - Dans le dossier du dépôt :
+     ```bash
+     clasp clone <scriptId>
+     ```
+     Ça crée `.clasp.json` (référence vers le projet) et récupère `appsscript.json`.
+4. **Synchroniser** :
+   - `clasp push` : envoie `Code.gs` local vers l'éditeur en ligne.
+   - `clasp pull` : récupère les changements faits en ligne vers le local.
+
 ## 📋 Utilisation
 
 1. Préparer l'onglet cible avec au moins une colonne d'**adresses de destination**
