@@ -87,7 +87,7 @@ lancement : y renseigner les points de départ possibles (nom + adresse exacte).
 ### Notes
 
 - Seules les lignes dont la colonne résultat est **vide** ou contient
-  « Erreur » / « Introuvable » sont (re)calculées. Pour recalculer, vider la cellule
+  « Erreur » / « Introuvable » / « Hors » sont (re)calculées. Pour recalculer, vider la cellule
   ou utiliser une autre colonne de résultat (ex. une pour la voiture, une pour le train).
 - Les modes **train / bus** dépendent des horaires réels : une adresse sans desserte
   peut renvoyer « Introuvable » même si l'adresse est correcte.
@@ -96,8 +96,9 @@ lancement : y renseigner les points de départ possibles (nom + adresse exacte).
   Audun-le-Tiche → Esch-sur-Alzette → Luxembourg), quel que soit le point de départ
   sélectionné dans la fenêtre. Il ne s'applique **qu'aux adresses situées au
   Luxembourg** (détection sur la présence de « Luxembourg » ou d'un code postal du
-  type « L-1234 » dans l'adresse) ; les autres lignes reçoivent « Hors Luxembourg »
-  et doivent être calculées avec un autre mode/une autre colonne. Pour chaque adresse
+  type « L-1234 » dans l'adresse) ; les adresses hors Luxembourg sont ignorées
+  (cellule laissée vide, sans note) et peuvent donc être calculées avec un autre
+  mode dans une autre colonne. Pour chaque adresse
   au Luxembourg, le script teste une douzaine d'arrêts représentatifs de la ligne,
   calcule le temps de vélo restant jusqu'à la destination pour chacun (via la
   Directions API en mode vélo), et retient l'arrêt qui minimise ce trajet à vélo —

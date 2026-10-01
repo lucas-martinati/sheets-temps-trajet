@@ -183,7 +183,8 @@ function demarrerCalculFond(opts) {
   for (var i = 1; i < data.length; i++) {
     var endAddress = data[i][idxAdresse - 1];
     var t = data[i][idxTemps - 1] ? data[i][idxTemps - 1].toString() : "";
-    if (endAddress && (!t || t.trim() === "" || t.indexOf("Erreur") !== -1 || t.indexOf("Introuvable") !== -1)) {
+    // "Hors Luxembourg" (ancien comportement) est retraité pour être nettoyé (cellule laissée vide).
+    if (endAddress && (!t || t.trim() === "" || t.indexOf("Erreur") !== -1 || t.indexOf("Introuvable") !== -1 || t.indexOf("Hors") !== -1)) {
       rows.push(i + 1);
     }
   }
@@ -204,7 +205,7 @@ function demarrerCalculFond(opts) {
     rows: rows,
     i: 0,
     total: rows.length,
-    ok: 0, introuvable: 0, erreur: 0, quotaCourt: 0,
+    ok: 0, introuvable: 0, erreur: 0, quotaCourt: 0, horsPerimetre: 0,
     statut: rows.length > 0 ? "en_cours" : "termine",
     detail: "",
     derniereAdresse: "",
@@ -275,6 +276,7 @@ function executerLotFond() {
       if (r.statut === "ok") job.ok++;
       else if (r.statut === "introuvable") job.introuvable++;
       else if (r.statut === "quota_court") job.quotaCourt++;
+      else if (r.statut === "hors_perimetre") job.horsPerimetre++;
       else job.erreur++;
 
       job.recents.unshift({ address: address, label: r.label, cls: r.cls });
@@ -338,9 +340,11 @@ function traiterRowFond(sheet, row, idxTemps, startAddress, address, mode, trans
     return { statut: "introuvable", label: "Introuvable", cls: "warn" };
   }
   if (res.status === "HORS_PERIMETRE") {
-    cell.setValue("Hors Luxembourg");
-    cell.setNote("Le mode Bus 603 + Vélo ne s'applique qu'aux adresses situées au Luxembourg.");
-    return { statut: "introuvable", label: "Hors Luxembourg", cls: "warn" };
+    // Adresse hors Luxembourg : on ne pollue pas la feuille.
+    // Cellule laissée vide et sans note, pour pouvoir la réutiliser avec un autre mode.
+    cell.setValue("");
+    cell.setNote(null);
+    return { statut: "hors_perimetre", label: "Ignoré (hors Lux.)", cls: "ignore" };
   }
   if (res.status === "OVER_DAILY_LIMIT") {
     return { statut: "quota_jour", detail: res.detail, label: "Quota", cls: "err" };
@@ -497,6 +501,7 @@ function getEtatProgression() {
     introuvable: job.introuvable,
     erreur: job.erreur,
     quotaCourt: job.quotaCourt,
+    horsPerimetre: job.horsPerimetre || 0,
     derniereAdresse: job.derniereAdresse,
     nomLieu: job.nomLieu,
     detail: job.detail,
@@ -694,6 +699,7 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
           .val.ok { color: #188038; }
           .val.warn { color: #b06000; }
           .val.err { color: #d93025; }
+          .val.ignore { color: #5f6368; font-weight: 400; }
 
           .summary-icon {
             font-size: 36px;
@@ -770,9 +776,9 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
             <p class="bg-hint" id="hintBus603" style="display:none;">
               Ce mode part toujours de Piennes via la ligne 603 (le point de départ choisi
               ci-dessus est ignoré), prend le bus jusqu'à l'arrêt qui minimise le vélo restant,
-              puis termine à vélo. Il ne s'applique qu'aux adresses situées au Luxembourg
-              (les autres reçoivent « Hors Luxembourg »). Temps de bus basé sur les horaires
-              moyens (hors attente).
+              puis termine à vélo. Il ne s'applique qu'aux adresses situées au Luxembourg :
+              les adresses hors Luxembourg sont ignorées (cellule laissée vide, sans note).
+              Temps de bus basé sur les horaires moyens (hors attente).
             </p>
 
             <div class="cols-row">
@@ -825,6 +831,10 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
               <div class="summary-card">
                 <div class="num" id="cardWarn" style="color:#b06000;">0</div>
                 <div class="label">Introuvables</div>
+              </div>
+              <div class="summary-card">
+                <div class="num" id="cardIgnore" style="color:#5f6368;">0</div>
+                <div class="label">Ignorés (hors Lux.)</div>
               </div>
               <div class="summary-card">
                 <div class="num" id="cardErr" style="color:#d93025;">0</div>
@@ -975,12 +985,17 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
           function afficherResume(etat) {
             document.getElementById("cardOk").textContent = etat.ok;
             document.getElementById("cardWarn").textContent = etat.introuvable + etat.quotaCourt;
+            document.getElementById("cardIgnore").textContent = etat.horsPerimetre || 0;
             document.getElementById("cardErr").textContent = etat.erreur;
+
+            var suffixIgnore = (etat.horsPerimetre > 0)
+              ? " " + etat.horsPerimetre + " ligne(s) hors Luxembourg ignorée(s) (cellule laissée vide)."
+              : "";
 
             if (etat.statut === "quota_jour") {
               document.getElementById("summaryIcon").textContent = "⏸️";
               document.getElementById("summaryTitle").textContent = "Quota atteint";
-              document.getElementById("summarySub").textContent = etat.ok + " trajet(s) calculé(s) avant l'arrêt.";
+              document.getElementById("summarySub").textContent = etat.ok + " trajet(s) calculé(s) avant l'arrêt." + suffixIgnore;
             } else if (etat.statut === "config_erreur") {
               document.getElementById("summaryIcon").textContent = "🔑";
               document.getElementById("summaryTitle").textContent = "Clé API à vérifier";
@@ -989,11 +1004,11 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
             } else if (etat.statut === "arrete") {
               document.getElementById("summaryIcon").textContent = "🛑";
               document.getElementById("summaryTitle").textContent = "Calcul interrompu";
-              document.getElementById("summarySub").textContent = etat.ok + " trajet(s) calculé(s) avant l'arrêt.";
+              document.getElementById("summarySub").textContent = etat.ok + " trajet(s) calculé(s) avant l'arrêt." + suffixIgnore;
             } else {
               document.getElementById("summaryIcon").textContent = "✅";
               document.getElementById("summaryTitle").textContent = "Calcul terminé";
-              document.getElementById("summarySub").textContent = "Depuis : " + (etat.nomLieu || nomLieu);
+              document.getElementById("summarySub").textContent = "Depuis : " + (etat.nomLieu || nomLieu) + suffixIgnore;
             }
             showView("doneView");
           }
