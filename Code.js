@@ -160,7 +160,7 @@ function demarrerCalculFond(opts) {
   opts = opts || {};
   var startAddress = opts.startAddress;
   var nomLieu = opts.nomLieu;
-  var mode = opts.mode || "driving";                 // driving | walking | transit
+  var mode = opts.mode || "driving";                 // driving | walking | bicycling | transit | bus603velo
   var transitMode = opts.transitMode || "";          // train | bus (si mode = transit)
   var idxAdresse = parseInt(opts.colAdresse, 10);    // 1-based
   var idxTemps = parseInt(opts.colResultat, 10);     // 1-based
@@ -769,6 +769,7 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
             <select id="mode" onchange="majHintMode()">
               <option value="driving" selected>🚗 Voiture</option>
               <option value="walking">🚶 À pied</option>
+              <option value="bicycling">🚲 Vélo</option>
               <option value="transit|train">🚆 Train</option>
               <option value="transit|bus">🚌 Bus</option>
               <option value="bus603velo">🚌🚲 Bus 603 (Piennes) + Vélo</option>
@@ -882,7 +883,7 @@ function getHtmlTemplate(optionsHtml, colAdresseHtml, colResultatHtml) {
             var startAddress = select.value;
             nomLieu = select.options[select.selectedIndex].text;
 
-            // Mode : la valeur est "driving", "walking", "transit|train" ou "transit|bus".
+            // Modes directs : driving, walking, bicycling, bus603velo ; transports : transit|train ou transit|bus.
             var modeSelect = document.getElementById("mode");
             var modeParts = modeSelect.value.split("|");
             var mode = modeParts[0];

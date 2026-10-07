@@ -11,7 +11,7 @@ Le calcul tourne **en arrière-plan** : on peut fermer la fenêtre, il continue 
 
 - Menu personnalisé dans Google Sheets (**🚗 Outils Candidatures**).
 - Choix du **point de départ** parmi une liste d'adresses enregistrées.
-- Choix du **mode de transport** : 🚗 voiture · 🚶 à pied · 🚆 train · 🚌 bus ·
+- Choix du **mode de transport** : 🚗 voiture · 🚶 à pied · 🚲 vélo · 🚆 train · 🚌 bus ·
   🚌🚲 **Bus 603 (Piennes) + Vélo**.
 - Choix libre des **colonnes** utilisées (colonne de l'adresse, colonne du résultat).
 - **Traitement en arrière-plan** via un déclencheur temporel : la fermeture de la
@@ -122,5 +122,5 @@ lancement : y renseigner les points de départ possibles (nom + adresse exacte).
   depuis la fenêtre, traite les lignes par tranches de ~5 min et se re-planifie tant
   qu'il reste du travail. Un `LockService` garantit qu'un seul lot tourne à la fois.
 - **Progression** : la fenêtre interroge `getEtatProgression` toutes les 1,5 s.
-- **Directions API** : appelée via `UrlFetchApp` ; le mode (`driving` / `walking` /
+- **Directions API** : appelée via `UrlFetchApp` ; le mode (`driving` / `walking` / `bicycling` /
   `transit` + `transit_mode=train|bus`) est passé en paramètre.
